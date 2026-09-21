@@ -9,3 +9,7 @@ __pycache__/
 # LocalObjectStorage's dev/CI fallback (see app/core/storage.py) — never
 # committed, same as any other local-only runtime state.
 /var/
+
+# PyInstaller output for the desktop build (see desktop/build.sh)
+/build/
+/dist/
