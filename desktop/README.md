@@ -36,3 +36,15 @@ JWT_SECRET="some-32-byte-secret" \
 DESKTOP_BACKEND_PORT=8123 \
 dist/plutus-backend/plutus-backend
 ```
+
+## Accounting audit
+
+The accounting / chart-of-accounts audit and implementation plan lives in
+one place, the cloud backend repo:
+[`ACCOUNTING_IMPLEMENTATION_AUDIT.md`](https://github.com/oghenenoghie/plutus-hr-system/blob/main/ACCOUNTING_IMPLEMENTATION_AUDIT.md).
+It applies to this repo unchanged: `app/` and `alembic/` here are identical
+to `plutus-hr-system` (see the audit's §2.4). Per its assumption A28, every
+accounting change, including every Alembic revision, has to land in both
+repositories in the same revision order. Otherwise the desktop and cloud
+schemas diverge, and `alembic upgrade head` in `app/desktop_main.py` would
+migrate desktop installs to a different schema than the cloud's.
