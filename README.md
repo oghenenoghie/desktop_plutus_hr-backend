@@ -8,6 +8,10 @@
 - PostgreSQL
 - Pytest, Ruff and mypy for quality checks
 
+## Desktop build
+
+This repository is the backend of the Plutus desktop app. It runs the same code and migrations as `plutus-hr-system`, plus `app/desktop_main.py`, which migrates the embedded Postgres and serves as an ordinary role with row-level security. Building the standalone executable is described in [`desktop/README.md`](desktop/README.md).
+
 ## Local setup
 
 ```bash
