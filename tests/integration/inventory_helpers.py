@@ -1,4 +1,4 @@
-"""Shared scaffolding for the inventory API tests."""
+""""Shared scaffolding for the inventory API tests."""
 
 import uuid
 from decimal import Decimal
@@ -114,20 +114,30 @@ class Shop:
 
 
 def stock_by_warehouse(shop: Shop, item: str | None = None) -> dict[str, Decimal]:
+    item_id = uuid.UUID(item or shop.item)
     rows = ok(
         client.get(
             f"{API}/stock",
             headers=shop.admin,
-            params={"item_id": item or shop.item, "include_zero": True},
+            params={"item_id": str(item_id), "include_zero": True},
         )
     )
-    # This helper models physical on-hand stock, not the All Stocks read model.
-    # The read model deliberately returns active item/warehouse pairs at zero;
-    # omit those rows here so posting assertions compare actual balances.
+    # The All Stocks read model includes every active item/warehouse pair at
+    # zero. For movement assertions, retain zero rows only for warehouses that
+    # have actually had a movement for this item; omit untouched empty pairs.
+    with tenant_session(shop.org_id, uuid.uuid4(), "admin") as db:
+        moved_warehouses = {
+            str(warehouse_id)
+            for warehouse_id in db.scalars(
+                select(InventoryStockMovement.warehouse_id)
+                .where(InventoryStockMovement.item_id == item_id)
+                .distinct()
+            )
+        }
     return {
         row["warehouse_code"]: Decimal(row["quantity"])
         for row in rows
-        if Decimal(row["quantity"]) != 0
+        if Decimal(row["quantity"]) != 0 or str(row["warehouse_id"]) in moved_warehouses
     }
 
 
@@ -277,3 +287,4 @@ class Store(Shop):
 
 def box_line(quantity: str = "10", price: int = 5_000_00, **extra: Any) -> dict[str, Any]:
     return {"quantity": quantity, "unit_price_minor": price, **extra}
+"
