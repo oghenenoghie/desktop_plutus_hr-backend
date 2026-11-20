@@ -121,7 +121,14 @@ def stock_by_warehouse(shop: Shop, item: str | None = None) -> dict[str, Decimal
             params={"item_id": item or shop.item, "include_zero": True},
         )
     )
-    return {row["warehouse_code"]: Decimal(row["quantity"]) for row in rows}
+    # This helper models physical on-hand stock, not the All Stocks read model.
+    # The read model deliberately returns active item/warehouse pairs at zero;
+    # omit those rows here so posting assertions compare actual balances.
+    return {
+        row["warehouse_code"]: Decimal(row["quantity"])
+        for row in rows
+        if Decimal(row["quantity"]) != 0
+    }
 
 
 def assert_projections_match_ledger(org_id: uuid.UUID) -> None:
