@@ -287,4 +287,3 @@ class Store(Shop):
 
 def box_line(quantity: str = "10", price: int = 5_000_00, **extra: Any) -> dict[str, Any]:
     return {"quantity": quantity, "unit_price_minor": price, **extra}
-"
