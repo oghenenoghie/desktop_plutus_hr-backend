@@ -1,4 +1,4 @@
-""""Shared scaffolding for the inventory API tests."""
+"""Shared scaffolding for the inventory API tests."""
 
 import uuid
 from decimal import Decimal
