@@ -360,17 +360,31 @@ def stock_rows(
     include_zero: bool = False,
     with_value: bool,
 ) -> list[StockRowOut]:
+    # Stock on hand is a projection of registered, tracked items against
+    # active warehouses. A missing balance is displayed as zero; it is not
+    # materialised as a balance row and creates no movement or GL posting.
     query = (
         select(InventoryStockBalance, InventoryItem, InventoryWarehouse, InventoryUnit.code)
-        .join(InventoryItem, InventoryItem.id == InventoryStockBalance.item_id)
-        .join(InventoryWarehouse, InventoryWarehouse.id == InventoryStockBalance.warehouse_id)
+        .select_from(InventoryItem)
         .join(InventoryUnit, InventoryUnit.id == InventoryItem.base_unit_id)
+        .join(InventoryWarehouse, InventoryWarehouse.is_active.is_(True))
+        .outerjoin(
+            InventoryStockBalance,
+            and_(
+                InventoryStockBalance.item_id == InventoryItem.id,
+                InventoryStockBalance.warehouse_id == InventoryWarehouse.id,
+            ),
+        )
+        .where(
+            InventoryItem.is_active.is_(True),
+            InventoryItem.item_type.in_(TRACKED_TYPES),
+        )
         .order_by(InventoryItem.sku, InventoryWarehouse.code)
     )
     if warehouse_id is not None:
-        query = query.where(InventoryStockBalance.warehouse_id == warehouse_id)
+        query = query.where(InventoryWarehouse.id == warehouse_id)
     if item_id is not None:
-        query = query.where(InventoryStockBalance.item_id == item_id)
+        query = query.where(InventoryItem.id == item_id)
     if category_id is not None:
         query = query.where(InventoryItem.category_id == category_id)
     if q and q.strip():
@@ -388,10 +402,11 @@ def stock_rows(
 
     out = []
     for balance, item, warehouse, unit_code in rows:
+        quantity = balance.quantity_base if balance is not None else Decimal(0)
         value: int | None = None
         if with_value:
             pool = pools.get(item.id)
-            value = valued_at_average(pool, balance.quantity_base) if pool else 0
+            value = valued_at_average(pool, quantity) if pool and quantity else 0
         out.append(
             StockRowOut(
                 item_id=item.id,
@@ -401,7 +416,7 @@ def stock_rows(
                 warehouse_id=warehouse.id,
                 warehouse_code=warehouse.code,
                 warehouse_name=warehouse.name,
-                quantity=balance.quantity_base,
+                quantity=quantity,
                 reorder_level=item.reorder_level,
                 value_minor=value,
             )

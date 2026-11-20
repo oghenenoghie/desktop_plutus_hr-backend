@@ -157,6 +157,22 @@ def test_master_data_rules() -> None:
     assert deactivate.status_code == 409
 
 
+def test_new_tracked_item_appears_in_all_stock_without_posting_anything() -> None:
+    shop = Shop()
+    item = shop.add_item("ZERO-STOCK")
+
+    stock = ok(client.get(f"{API}/stock?include_zero=true", headers=shop.admin))
+    rows = [row for row in stock if row["item_id"] == item]
+    assert len(rows) == 1
+    assert Decimal(rows[0]["quantity"]) == 0
+    assert rows[0]["value_minor"] == 0
+
+    # Registration is master data only: it must not create ledger activity.
+    movements = ok(client.get(f"{API}/movements", headers=shop.admin))
+    assert movements["total"] == 0
+    assert_projections_match_ledger(shop.org_id)
+
+
 # --- posting ----------------------------------------------------------------
 
 
