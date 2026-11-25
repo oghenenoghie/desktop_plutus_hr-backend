@@ -363,11 +363,14 @@ def stock_rows(
     # Stock on hand is a projection of registered, tracked items against
     # active warehouses. A missing balance is displayed as zero; it is not
     # materialised as a balance row and creates no movement or GL posting.
+    # Stock that is actually held stays listed even when its item has been
+    # archived (an item can be archived with stock on hand), so the screen
+    # keeps agreeing with the ledger and the inventory account.
     query = (
         select(InventoryStockBalance, InventoryItem, InventoryWarehouse, InventoryUnit.code)
         .select_from(InventoryItem)
         .join(InventoryUnit, InventoryUnit.id == InventoryItem.base_unit_id)
-        .join(InventoryWarehouse, InventoryWarehouse.is_active.is_(True))
+        .join(InventoryWarehouse, true())
         .outerjoin(
             InventoryStockBalance,
             and_(
@@ -376,8 +379,11 @@ def stock_rows(
             ),
         )
         .where(
-            InventoryItem.is_active.is_(True),
             InventoryItem.item_type.in_(TRACKED_TYPES),
+            or_(
+                and_(InventoryItem.is_active.is_(True), InventoryWarehouse.is_active.is_(True)),
+                InventoryStockBalance.quantity_base != 0,
+            ),
         )
         .order_by(InventoryItem.sku, InventoryWarehouse.code)
     )

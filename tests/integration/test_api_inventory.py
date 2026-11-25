@@ -173,6 +173,29 @@ def test_new_tracked_item_appears_in_all_stock_without_posting_anything() -> Non
     assert_projections_match_ledger(shop.org_id)
 
 
+def test_archiving_an_item_that_still_holds_stock_keeps_that_stock_in_view() -> None:
+    shop = Shop()
+    shop.adjust("opening_balance", [shop.line("5", 100)])
+    ok(client.patch(f"{API}/items/{shop.item}", headers=shop.admin, json={"is_active": False}))
+
+    # The five units are still on the shelf and in the inventory account, so
+    # Stock on Hand still lists them, with or without zero balances.
+    for query in ("", "?include_zero=true"):
+        rows = [
+            row
+            for row in ok(client.get(f"{API}/stock{query}", headers=shop.admin))
+            if row["item_id"] == shop.item
+        ]
+        assert [(Decimal(row["quantity"]), row["value_minor"]) for row in rows] == [
+            (Decimal(5), 500)
+        ]
+    # A zero balance of an archived item is not listed.
+    other = shop.add_item("ARCHIVED-EMPTY")
+    ok(client.patch(f"{API}/items/{other}", headers=shop.admin, json={"is_active": False}))
+    listed = ok(client.get(f"{API}/stock?include_zero=true", headers=shop.admin))
+    assert other not in {row["item_id"] for row in listed}
+
+
 # --- posting ----------------------------------------------------------------
 
 
