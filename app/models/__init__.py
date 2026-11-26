@@ -16,7 +16,14 @@ from app.models.audit_log import AuditLog
 from app.models.bank_account import BankAccount
 from app.models.bank_statement_line import BankStatementLine
 from app.models.base import Base
-from app.models.benefit import Benefit, BenefitDependent, BenefitFrequency, BenefitPlan
+from app.models.benefit import (
+    Benefit,
+    BenefitApplication,
+    BenefitApplicationStatus,
+    BenefitDependent,
+    BenefitFrequency,
+    BenefitPlan,
+)
 from app.models.bill import Bill, BillStatus
 from app.models.branch import Branch
 from app.models.budget import Budget, BudgetLine
@@ -157,6 +164,8 @@ __all__ = [
     "BankStatementLine",
     "Base",
     "Benefit",
+    "BenefitApplication",
+    "BenefitApplicationStatus",
     "BenefitDependent",
     "BenefitFrequency",
     "BenefitPlan",
