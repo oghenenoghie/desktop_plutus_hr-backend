@@ -341,3 +341,66 @@ def test_expense_policy_limit_blocks_submission_over_cap() -> None:
         },
     )
     assert now_allowed.status_code == 201, now_allowed.text
+
+
+def test_auditor_can_read_expenses_but_cannot_reimburse_or_change_policy() -> None:
+    org_id = create_org()
+    admin_headers = _admin_headers(org_id, email="expense-audit-admin@example.com")
+    employee_email = "expense-audit-employee@example.com"
+    employee_account_id = create_account_with_membership(
+        org_id, Role.EMPLOYEE, email=employee_email
+    )
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-EXP-AUDIT")
+    employee_headers = auth_headers(login(employee_email)["access_token"])
+
+    submitted = client.post(
+        "/api/v1/expenses/me",
+        headers=employee_headers,
+        json={
+            "category": "travel",
+            "description": "Auditable taxi fare",
+            "amount_minor": 7500,
+            "expense_date": "2026-01-20",
+        },
+    )
+    assert submitted.status_code == 201, submitted.text
+    expense_id = submitted.json()["id"]
+
+    policy = client.put(
+        "/api/v1/expenses/policy-limits/travel",
+        headers=admin_headers,
+        json={"max_amount_minor": 10000},
+    )
+    assert policy.status_code == 200, policy.text
+
+    auditor_email = "expense-auditor@example.com"
+    auditor_account_id = create_account_with_membership(
+        org_id, Role.AUDITOR, email=auditor_email
+    )
+    auditor_tokens = login_with_mfa(auditor_account_id, auditor_email, Role.AUDITOR)
+    auditor_headers = auth_headers(auditor_tokens["access_token"])
+
+    expenses = client.get("/api/v1/expenses", headers=auditor_headers)
+    assert expenses.status_code == 200, expenses.text
+    assert [row["id"] for row in expenses.json()] == [expense_id]
+
+    limits = client.get("/api/v1/expenses/policy-limits", headers=auditor_headers)
+    assert limits.status_code == 200, limits.text
+    assert limits.json()[0]["category"] == "travel"
+
+    reimburse = client.post(
+        f"/api/v1/expenses/{expense_id}/reimburse", headers=auditor_headers
+    )
+    assert reimburse.status_code == 403
+
+    change_policy = client.put(
+        "/api/v1/expenses/policy-limits/travel",
+        headers=auditor_headers,
+        json={"max_amount_minor": 20000},
+    )
+    assert change_policy.status_code == 403
+
+    delete_policy = client.delete(
+        "/api/v1/expenses/policy-limits/travel", headers=auditor_headers
+    )
+    assert delete_policy.status_code == 403
