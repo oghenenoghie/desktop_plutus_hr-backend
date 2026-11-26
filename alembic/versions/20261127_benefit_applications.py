@@ -20,7 +20,7 @@ def upgrade() -> None:
     op.execute("ALTER TYPE approval_request_type ADD VALUE IF NOT EXISTS 'benefit_application'")
 
     application_status = postgresql.ENUM(
-        "pending", "approved", "rejected", "cancelled",
+        "pending", "approved", "rejected",
         name="benefit_application_status",
         create_type=False,
     )
@@ -36,6 +36,7 @@ def upgrade() -> None:
         sa.Column("note", sa.String(length=500), nullable=True),
         sa.Column("status", application_status, nullable=False),
         sa.Column("decision_note", sa.String(length=500), nullable=True),
+        sa.Column("benefit_id", sa.UUID(), nullable=True),
         sa.Column("reviewed_by_account_id", sa.UUID(), nullable=True),
         sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -49,6 +50,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["org_id"], ["organisations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["employee_id"], ["employees.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["plan_id"], ["benefit_plans.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["benefit_id"], ["benefits.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["reviewed_by_account_id"], ["accounts.id"], ondelete="SET NULL"
         ),
