@@ -141,6 +141,10 @@ def approve_loan_endpoint(
     claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
+    if loan.status != LoanStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="loan is not pending approval"
+        )
     try:
         instance, is_final = decide(
             db,
@@ -150,6 +154,8 @@ def approve_loan_endpoint(
             requester_employee_id=loan.employee_id,
             approve=True,
         )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if is_final:
@@ -176,6 +182,10 @@ def reject_loan_endpoint(
     claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
+    if loan.status != LoanStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="loan is not pending approval"
+        )
     try:
         instance, _ = decide(
             db,
@@ -185,6 +195,8 @@ def reject_loan_endpoint(
             requester_employee_id=loan.employee_id,
             approve=False,
         )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     loan.status = LoanStatus.REJECTED
