@@ -392,7 +392,8 @@ def list_benefit_applications(
 
 
 @router.post(
-    "/applications/{application_id}/approve", response_model=BenefitApplicationOut
+    "/applications/{application_id}/approve",
+    response_model=BenefitApplicationOut,
 )
 def approve_benefit_application(
     application_id: uuid.UUID,
@@ -456,7 +457,8 @@ def approve_benefit_application(
 
 
 @router.post(
-    "/applications/{application_id}/reject", response_model=BenefitApplicationOut
+    "/applications/{application_id}/reject",
+    response_model=BenefitApplicationOut,
 )
 def reject_benefit_application(
     application_id: uuid.UUID,
