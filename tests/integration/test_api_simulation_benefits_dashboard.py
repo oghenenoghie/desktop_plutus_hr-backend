@@ -412,7 +412,6 @@ def test_benefit_plan_catalogue_and_dependents() -> None:
     assert dependents_after.json() == []
 
 
-
 def test_employee_benefit_application_requires_approval_before_enrolment() -> None:
     org_id = create_org()
     admin_headers = _admin_headers(org_id, email="benefit-application-admin@example.com")
