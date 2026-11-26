@@ -20,6 +20,7 @@ from app.services.payroll import outstanding_loan_balance
 router = APIRouter(prefix="/loans", tags=["loans"])
 
 _MANAGE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT)
+_APPROVE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 
 
 def _to_out(db: Session, loan: Loan) -> LoanOut:
@@ -138,7 +139,7 @@ def cancel_loan_endpoint(
 def approve_loan_endpoint(
     loan_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
     try:
@@ -173,7 +174,7 @@ def approve_loan_endpoint(
 def reject_loan_endpoint(
     loan_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
     try:
