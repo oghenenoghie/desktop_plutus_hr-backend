@@ -424,7 +424,9 @@ def approve_benefit_application(
     if is_final:
         plan = db.get(BenefitPlan, application.plan_id)
         if plan is None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="benefit plan no longer exists")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="benefit plan no longer exists"
+            )
         try:
             benefit = assign_benefit(
                 db,
