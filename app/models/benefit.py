@@ -1,3 +1,4 @@
+import enum
 import uuid
 from datetime import date, datetime
 
@@ -8,7 +9,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.domain.payroll.benefits import BenefitFrequency
 from app.models.base import Base
 
-__all__ = ["Benefit", "BenefitDependent", "BenefitFrequency", "BenefitPlan"]
+__all__ = [
+    "Benefit",
+    "BenefitApplication",
+    "BenefitApplicationStatus",
+    "BenefitDependent",
+    "BenefitFrequency",
+    "BenefitPlan",
+]
 
 
 class BenefitPlan(Base):
@@ -130,3 +138,54 @@ class BenefitDependent(Base):
     date_of_birth: Mapped[date | None] = mapped_column(Date)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class BenefitApplicationStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+
+class BenefitApplication(Base):
+    """An employee's request to join a benefit plan, separate from enrolment.
+
+    Approval creates the Benefit enrolment; pending/rejected applications
+    never participate in payroll deductions.
+    """
+
+    __tablename__ = "benefit_applications"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("organisations.id", ondelete="CASCADE"), nullable=False
+    )
+    employee_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("benefit_plans.id", ondelete="RESTRICT"), nullable=False
+    )
+    requested_effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[BenefitApplicationStatus] = mapped_column(
+        Enum(
+            BenefitApplicationStatus,
+            name="benefit_application_status",
+            values_callable=lambda m: [x.value for x in m],
+        ),
+        nullable=False,
+        default=BenefitApplicationStatus.PENDING,
+    )
+    decision_note: Mapped[str | None] = mapped_column(String(500))
+    reviewed_by_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL")
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
