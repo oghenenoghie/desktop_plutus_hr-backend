@@ -145,7 +145,6 @@ class BenefitApplicationStatus(str, enum.Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
-    CANCELLED = "cancelled"
 
 
 class BenefitApplication(Base):
@@ -181,6 +180,9 @@ class BenefitApplication(Base):
         default=BenefitApplicationStatus.PENDING,
     )
     decision_note: Mapped[str | None] = mapped_column(String(500))
+    benefit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("benefits.id", ondelete="SET NULL")
+    )
     reviewed_by_account_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("accounts.id", ondelete="SET NULL")
     )
