@@ -8,10 +8,21 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_claims, get_current_employee, get_tenant_db, require_roles
 from app.core.security import TokenClaims
-from app.models.approval import ApprovalRequestType\nfrom app.models.benefit import (\n    Benefit,\n    BenefitApplication,\n    BenefitApplicationStatus,\n    BenefitDependent,\n    BenefitPlan,\n)
-from app.models.department import Department\nfrom app.models.employee import Employee
+from app.models.approval import ApprovalRequestType
+from app.models.benefit import (
+    Benefit,
+    BenefitApplication,
+    BenefitApplicationStatus,
+    BenefitDependent,
+    BenefitPlan,
+)
+from app.models.department import Department
+from app.models.employee import Employee
 from app.models.membership import Role
+from app.schemas.approvals import DecisionBody
 from app.schemas.benefits import (
+    BenefitApplicationCreate,
+    BenefitApplicationOut,
     BenefitCreate,
     BenefitDependentCreate,
     BenefitDependentOut,
@@ -20,8 +31,15 @@ from app.schemas.benefits import (
     BenefitPlanCreate,
     BenefitPlanOut,
 )
+from app.services import approvals
 from app.services.audit import record_audit_event
-from app.services.benefits import (\n    add_dependent,\n    assign_benefit,\n    create_benefit_plan,\n    end_benefit,\n    submit_benefit_application,\n)
+from app.services.benefits import (
+    add_dependent,
+    assign_benefit,
+    create_benefit_plan,
+    end_benefit,
+    submit_benefit_application,
+)
 
 router = APIRouter(prefix="/benefits", tags=["benefits"])
 
