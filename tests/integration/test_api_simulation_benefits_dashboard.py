@@ -491,9 +491,7 @@ def test_rejected_benefit_application_never_creates_enrolment() -> None:
     employee_account_id = create_account_with_membership(
         org_id, Role.EMPLOYEE, email=employee_email
     )
-    create_employee(
-        org_id, account_id=employee_account_id, employee_number="EMP-BEN-REJECT"
-    )
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-BEN-REJECT")
     plan = client.post(
         "/api/v1/benefits/plans",
         headers=admin_headers,
