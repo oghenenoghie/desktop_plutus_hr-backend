@@ -94,9 +94,7 @@ def test_auditor_can_read_payroll_register_reconciliation_and_certificate() -> N
     tokens = login_with_mfa(account_id, email, Role.AUDITOR)
     auditor_headers = auth_headers(tokens["access_token"])
 
-    register = client.get(
-        f"/api/v1/reports/payroll-register/{run['id']}", headers=auditor_headers
-    )
+    register = client.get(f"/api/v1/reports/payroll-register/{run['id']}", headers=auditor_headers)
     assert register.status_code == 200, register.text
     assert len(register.json()) == 1
     assert register.json()[0]["employee_id"] == str(employee_id)
