@@ -420,9 +420,7 @@ def test_employee_benefit_application_requires_approval_before_enrolment() -> No
     employee_account_id = create_account_with_membership(
         org_id, Role.EMPLOYEE, email=employee_email
     )
-    employee_id = create_employee(
-        org_id, account_id=employee_account_id, employee_number="EMP-BEN-APP"
-    )
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-BEN-APP")
     plan = client.post(
         "/api/v1/benefits/plans",
         headers=admin_headers,
