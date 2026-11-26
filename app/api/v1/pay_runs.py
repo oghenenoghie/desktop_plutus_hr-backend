@@ -170,10 +170,10 @@ def validate_pay_run_endpoint(
 def preview_pay_run_endpoint(
     pay_run_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_VIEW),
 ) -> list[PayslipOut]:
     """What each payslip in a draft or validated run will be, before it's
-    posted. Nothing is written (see preview_pay_run)."""
+    posted. Nothing is written (see preview_pay_run). Read-only, including for auditors."""
     pay_run = _get_pay_run_or_404(db, pay_run_id)
     try:
         return preview_pay_run(db, org_id=claims.org_id, pay_run=pay_run)
@@ -200,7 +200,7 @@ def pay_run_readiness_endpoint(
 def pay_run_statutory_charges_endpoint(
     pay_run_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_VIEW),
 ) -> PayRunStatutoryChargesOut:
     """PAYE, pension, NHF, NSITF (or a country's own schemes) for the run,
     each split into the employees' and the employer's share, with who it's
