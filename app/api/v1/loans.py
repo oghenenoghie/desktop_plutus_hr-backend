@@ -20,6 +20,7 @@ from app.services.payroll import outstanding_loan_balance
 router = APIRouter(prefix="/loans", tags=["loans"])
 
 _MANAGE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT)
+_VIEW = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 _APPROVE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 
 
@@ -95,9 +96,16 @@ def list_my_loans(
 
 @router.get("", response_model=list[LoanOut])
 def list_loans(
-    db: Session = Depends(get_tenant_db), _claims: TokenClaims = Depends(_MANAGE)
+    db: Session = Depends(get_tenant_db), claims: TokenClaims = Depends(_VIEW)
 ) -> list[LoanOut]:
-    loans = db.scalars(select(Loan))
+    query = select(Loan)
+    if claims.role == Role.MANAGER.value:
+        manager = db.scalar(select(Employee).where(Employee.account_id == claims.account_id))
+        if manager is None:
+            return []
+        report_ids = select(Employee.id).where(Employee.manager_id == manager.id)
+        query = query.where(Loan.employee_id.in_(report_ids))
+    loans = db.scalars(query.order_by(Loan.created_at.desc()))
     return [_to_out(db, loan) for loan in loans]
 
 
@@ -105,9 +113,16 @@ def list_loans(
 def get_loan(
     loan_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    _claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_VIEW),
 ) -> LoanOut:
-    return _to_out(db, _get_loan_or_404(db, loan_id))
+    loan = _get_loan_or_404(db, loan_id)
+    if claims.role == Role.MANAGER.value:
+        manager = db.scalar(select(Employee).where(Employee.account_id == claims.account_id))
+        if manager is None or loan.employee_id not in set(
+            db.scalars(select(Employee.id).where(Employee.manager_id == manager.id))
+        ):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="loan not found")
+    return _to_out(db, loan)
 
 
 @router.post("/{loan_id}/cancel", response_model=LoanOut)
