@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
-from app.models.benefit import BenefitFrequency
+from app.models.benefit import BenefitApplicationStatus, BenefitFrequency
 
 
 class BenefitPlanCreate(BaseModel):
@@ -72,5 +72,28 @@ class BenefitDependentOut(BaseModel):
     relationship: str
     date_of_birth: date | None
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BenefitApplicationCreate(BaseModel):
+    plan_id: uuid.UUID
+    requested_effective_date: date
+    note: str | None = None
+
+
+class BenefitApplicationOut(BaseModel):
+    id: uuid.UUID
+    employee_id: uuid.UUID
+    plan_id: uuid.UUID
+    requested_effective_date: date
+    note: str | None
+    status: BenefitApplicationStatus
+    decision_note: str | None
+    benefit_id: uuid.UUID | None
+    reviewed_by_account_id: uuid.UUID | None
+    reviewed_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}

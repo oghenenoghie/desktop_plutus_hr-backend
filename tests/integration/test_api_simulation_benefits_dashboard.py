@@ -410,3 +410,114 @@ def test_benefit_plan_catalogue_and_dependents() -> None:
         f"/api/v1/benefits/employees/{employee_id}/dependents", headers=headers
     )
     assert dependents_after.json() == []
+
+
+def test_employee_benefit_application_requires_approval_before_enrolment() -> None:
+    org_id = create_org()
+    admin_headers = _admin_headers(org_id, email="benefit-application-admin@example.com")
+    employee_email = "benefit-applicant@example.com"
+    employee_account_id = create_account_with_membership(
+        org_id, Role.EMPLOYEE, email=employee_email
+    )
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-BEN-APP")
+    plan = client.post(
+        "/api/v1/benefits/plans",
+        headers=admin_headers,
+        json={
+            "name": "Employee Health Plan",
+            "frequency": "monthly",
+            "default_employee_cost_minor": 12_000_00,
+            "employer_cost_minor": 30_000_00,
+        },
+    )
+    assert plan.status_code == 201, plan.text
+
+    employee_headers = auth_headers(login(employee_email)["access_token"])
+    available = client.get("/api/v1/benefits/plans/available", headers=employee_headers)
+    assert available.status_code == 200
+    assert [item["id"] for item in available.json()] == [plan.json()["id"]]
+
+    application = client.post(
+        "/api/v1/benefits/applications/me",
+        headers=employee_headers,
+        json={
+            "plan_id": plan.json()["id"],
+            "requested_effective_date": "2026-12-01",
+            "note": "Please enrol me in the health plan.",
+        },
+    )
+    assert application.status_code == 201, application.text
+    application_id = application.json()["id"]
+    assert application.json()["status"] == "pending"
+
+    duplicate = client.post(
+        "/api/v1/benefits/applications/me",
+        headers=employee_headers,
+        json={
+            "plan_id": plan.json()["id"],
+            "requested_effective_date": "2026-12-01",
+        },
+    )
+    assert duplicate.status_code == 409
+
+    # A pending application is not an active benefit and cannot be deducted.
+    my_benefits = client.get("/api/v1/benefits/me", headers=employee_headers)
+    assert my_benefits.status_code == 200
+    assert my_benefits.json() == []
+
+    pending = client.get("/api/v1/benefits/applications", headers=admin_headers)
+    assert pending.status_code == 200
+    assert any(item["id"] == application_id for item in pending.json())
+
+    approved = client.post(
+        f"/api/v1/benefits/applications/{application_id}/approve",
+        headers=admin_headers,
+        json={"comment": "Approved by HR."},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "approved"
+    assert approved.json()["benefit_id"]
+
+    enrolled = client.get("/api/v1/benefits/me", headers=employee_headers)
+    assert enrolled.status_code == 200
+    assert len(enrolled.json()) == 1
+    assert enrolled.json()[0]["plan_id"] == plan.json()["id"]
+
+
+def test_rejected_benefit_application_never_creates_enrolment() -> None:
+    org_id = create_org()
+    admin_headers = _admin_headers(org_id, email="benefit-reject-admin@example.com")
+    employee_email = "benefit-reject-applicant@example.com"
+    employee_account_id = create_account_with_membership(
+        org_id, Role.EMPLOYEE, email=employee_email
+    )
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-BEN-REJECT")
+    plan = client.post(
+        "/api/v1/benefits/plans",
+        headers=admin_headers,
+        json={"name": "Dental Plan", "frequency": "monthly"},
+    )
+    assert plan.status_code == 201, plan.text
+
+    employee_headers = auth_headers(login(employee_email)["access_token"])
+    application = client.post(
+        "/api/v1/benefits/applications/me",
+        headers=employee_headers,
+        json={
+            "plan_id": plan.json()["id"],
+            "requested_effective_date": "2026-12-01",
+        },
+    )
+    assert application.status_code == 201, application.text
+
+    rejected = client.post(
+        f"/api/v1/benefits/applications/{application.json()['id']}/reject",
+        headers=admin_headers,
+        json={"comment": "Eligibility criteria not met."},
+    )
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "rejected"
+
+    enrolled = client.get("/api/v1/benefits/me", headers=employee_headers)
+    assert enrolled.status_code == 200
+    assert enrolled.json() == []
