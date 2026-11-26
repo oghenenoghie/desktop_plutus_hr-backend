@@ -91,6 +91,7 @@ class BenefitApplicationOut(BaseModel):
     note: str | None
     status: BenefitApplicationStatus
     decision_note: str | None
+    benefit_id: uuid.UUID | None
     reviewed_by_account_id: uuid.UUID | None
     reviewed_at: datetime | None
     created_at: datetime
