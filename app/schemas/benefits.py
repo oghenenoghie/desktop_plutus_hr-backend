@@ -76,7 +76,6 @@ class BenefitDependentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-
 class BenefitApplicationCreate(BaseModel):
     plan_id: uuid.UUID
     requested_effective_date: date
