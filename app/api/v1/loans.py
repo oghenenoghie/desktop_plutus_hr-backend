@@ -12,8 +12,8 @@ from app.models.employee import Employee
 from app.models.loan import Loan, LoanStatus
 from app.models.membership import Role
 from app.schemas.loans import LoanCreate, LoanOut
-from app.services.audit import record_audit_event
 from app.services.approvals import decide, get_or_create_instance
+from app.services.audit import record_audit_event
 from app.services.loans import ActiveLoanExistsError, cancel_loan, request_loan
 from app.services.payroll import outstanding_loan_balance
 
