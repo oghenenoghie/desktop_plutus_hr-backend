@@ -104,6 +104,10 @@ def test_reverse_locked_run_restores_loan_and_posts_correcting_ledger_entries() 
     assert loan.status_code == 201, loan.text
     loan_id = loan.json()["id"]
 
+    approval = client.post(f"/api/v1/loans/{loan_id}/approve", headers=headers)
+    assert approval.status_code == 200, approval.text
+    assert approval.json()["status"] == "active"
+
     draft = _create_draft(headers, employee_ids=[employee_id])
     client.post(f"/api/v1/pay-runs/{draft['id']}/validate", headers=headers, json={})
     locked = client.post(f"/api/v1/pay-runs/{draft['id']}/lock", headers=headers)
@@ -335,6 +339,10 @@ def test_loan_deduction_yields_entirely_when_it_would_exceed_net_pay() -> None:
     )
     assert loan.status_code == 201, loan.text
     loan_id = loan.json()["id"]
+
+    approval = client.post(f"/api/v1/loans/{loan_id}/approve", headers=headers)
+    assert approval.status_code == 200, approval.text
+    assert approval.json()["status"] == "active"
 
     draft = _create_draft(headers, employee_ids=[employee_id])
     client.post(f"/api/v1/pay-runs/{draft['id']}/validate", headers=headers, json={})

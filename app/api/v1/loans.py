@@ -12,14 +12,15 @@ from app.models.employee import Employee
 from app.models.loan import Loan, LoanStatus
 from app.models.membership import Role
 from app.schemas.loans import LoanCreate, LoanOut
-from app.services.audit import record_audit_event
 from app.services.approvals import decide, get_or_create_instance
+from app.services.audit import record_audit_event
 from app.services.loans import ActiveLoanExistsError, cancel_loan, request_loan
 from app.services.payroll import outstanding_loan_balance
 
 router = APIRouter(prefix="/loans", tags=["loans"])
 
 _MANAGE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT)
+_VIEW = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 _APPROVE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 
 
@@ -62,6 +63,7 @@ def request_my_loan(
             num_installments=body.num_installments,
             start_date=body.start_date,
             interest_rate_bps=body.interest_rate_bps,
+            requires_approval=True,
         )
     except (ActiveLoanExistsError, LoanEligibilityError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -95,9 +97,16 @@ def list_my_loans(
 
 @router.get("", response_model=list[LoanOut])
 def list_loans(
-    db: Session = Depends(get_tenant_db), _claims: TokenClaims = Depends(_MANAGE)
+    db: Session = Depends(get_tenant_db), claims: TokenClaims = Depends(_VIEW)
 ) -> list[LoanOut]:
-    loans = db.scalars(select(Loan))
+    query = select(Loan)
+    if claims.role == Role.MANAGER.value:
+        manager = db.scalar(select(Employee).where(Employee.account_id == claims.account_id))
+        if manager is None:
+            return []
+        report_ids = select(Employee.id).where(Employee.manager_id == manager.id)
+        query = query.where(Loan.employee_id.in_(report_ids))
+    loans = db.scalars(query.order_by(Loan.created_at.desc()))
     return [_to_out(db, loan) for loan in loans]
 
 
@@ -105,9 +114,16 @@ def list_loans(
 def get_loan(
     loan_id: uuid.UUID,
     db: Session = Depends(get_tenant_db),
-    _claims: TokenClaims = Depends(_MANAGE),
+    claims: TokenClaims = Depends(_VIEW),
 ) -> LoanOut:
-    return _to_out(db, _get_loan_or_404(db, loan_id))
+    loan = _get_loan_or_404(db, loan_id)
+    if claims.role == Role.MANAGER.value:
+        manager = db.scalar(select(Employee).where(Employee.account_id == claims.account_id))
+        if manager is None or loan.employee_id not in set(
+            db.scalars(select(Employee.id).where(Employee.manager_id == manager.id))
+        ):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="loan not found")
+    return _to_out(db, loan)
 
 
 @router.post("/{loan_id}/cancel", response_model=LoanOut)
@@ -141,6 +157,10 @@ def approve_loan_endpoint(
     claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
+    if loan.status != LoanStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="loan is not pending approval"
+        )
     try:
         instance, is_final = decide(
             db,
@@ -150,6 +170,8 @@ def approve_loan_endpoint(
             requester_employee_id=loan.employee_id,
             approve=True,
         )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if is_final:
@@ -176,6 +198,10 @@ def reject_loan_endpoint(
     claims: TokenClaims = Depends(_APPROVE),
 ) -> LoanOut:
     loan = _get_loan_or_404(db, loan_id)
+    if loan.status != LoanStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="loan is not pending approval"
+        )
     try:
         instance, _ = decide(
             db,
@@ -185,6 +211,8 @@ def reject_loan_endpoint(
             requester_employee_id=loan.employee_id,
             approve=False,
         )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     loan.status = LoanStatus.REJECTED
