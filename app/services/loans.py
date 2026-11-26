@@ -28,6 +28,7 @@ def request_loan(
     num_installments: int,
     start_date: date,
     interest_rate_bps: int = 0,
+    requires_approval: bool = False,
 ) -> Loan:
     existing_loan = db.scalar(
         select(Loan.id).where(
@@ -59,7 +60,7 @@ def request_loan(
         num_installments=num_installments,
         installment_minor=installment_minor,
         start_date=start_date,
-        status=LoanStatus.PENDING,
+        status=LoanStatus.PENDING if requires_approval else LoanStatus.ACTIVE,
     )
     db.add(loan)
     db.flush()
