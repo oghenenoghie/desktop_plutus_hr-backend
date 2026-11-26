@@ -20,6 +20,12 @@ def _admin_headers(org_id, email: str = "lifecycle-admin@example.com") -> dict[s
     return auth_headers(tokens["access_token"])
 
 
+def _auditor_headers(org_id, email: str = "lifecycle-auditor@example.com") -> dict[str, str]:
+    account_id = create_account_with_membership(org_id, Role.AUDITOR, email=email)
+    tokens = login_with_mfa(account_id, email, Role.AUDITOR)
+    return auth_headers(tokens["access_token"])
+
+
 def _create_draft(headers: dict[str, str], **overrides) -> dict:
     body = {
         "period_start": "2026-01-01",
@@ -361,6 +367,28 @@ def _trial_balance(headers: dict[str, str]) -> dict[str, int]:
     response = client.get("/api/v1/general-ledger/trial-balance", headers=headers)
     assert response.status_code == 200, response.text
     return {line["account"]: line["balance_minor"] for line in response.json()}
+
+
+def test_auditor_can_read_pay_run_preview_but_cannot_mutate() -> None:
+    org_id = create_org()
+    manager_headers = _admin_headers(org_id, email="lifecycle-auditor-manager@example.com")
+    create_employee(org_id, employee_number="EMP-AUDIT-PREVIEW")
+    draft = _create_draft(manager_headers)
+
+    auditor_headers = _auditor_headers(org_id)
+    preview = client.get(f"/api/v1/pay-runs/{draft['id']}/preview", headers=auditor_headers)
+    assert preview.status_code == 200, preview.text
+    assert len(preview.json()) == 1
+
+    charges = client.get(
+        f"/api/v1/pay-runs/{draft['id']}/statutory-charges", headers=auditor_headers
+    )
+    assert charges.status_code == 200, charges.text
+
+    validate = client.post(
+        f"/api/v1/pay-runs/{draft['id']}/validate", headers=auditor_headers, json={}
+    )
+    assert validate.status_code == 403
 
 
 def test_preview_shows_each_payslip_without_posting_anything() -> None:
