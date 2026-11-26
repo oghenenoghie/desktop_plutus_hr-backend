@@ -161,7 +161,6 @@ def submit_benefit_application(
         select(Benefit.id).where(
             Benefit.employee_id == employee_id,
             Benefit.plan_id == plan.id,
-            Benefit.effective_date <= requested_effective_date,
             or_(Benefit.end_date.is_(None), Benefit.end_date >= requested_effective_date),
         )
     )
