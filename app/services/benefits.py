@@ -1,9 +1,17 @@
 import uuid
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.benefit import Benefit, BenefitDependent, BenefitFrequency, BenefitPlan
+from app.models.benefit import (
+    Benefit,
+    BenefitApplication,
+    BenefitApplicationStatus,
+    BenefitDependent,
+    BenefitFrequency,
+    BenefitPlan,
+)
 
 
 def create_benefit_plan(
@@ -127,3 +135,47 @@ def add_dependent(
     db.add(dependent)
     db.flush()
     return dependent
+
+
+
+def submit_benefit_application(
+    db: Session,
+    *,
+    org_id: uuid.UUID,
+    employee_id: uuid.UUID,
+    plan: BenefitPlan,
+    requested_effective_date: date,
+    note: str | None = None,
+) -> BenefitApplication:
+    if plan.org_id != org_id:
+        raise ValueError("benefit plan does not belong to this organisation")
+    pending = db.scalar(
+        select(BenefitApplication.id).where(
+            BenefitApplication.employee_id == employee_id,
+            BenefitApplication.plan_id == plan.id,
+            BenefitApplication.status == BenefitApplicationStatus.PENDING,
+        )
+    )
+    if pending is not None:
+        raise ValueError("an application for this benefit plan is already pending")
+    active = db.scalar(
+        select(Benefit.id).where(
+            Benefit.employee_id == employee_id,
+            Benefit.plan_id == plan.id,
+            Benefit.end_date.is_(None),
+        )
+    )
+    if active is not None:
+        raise ValueError("employee is already enrolled in this benefit plan")
+
+    application = BenefitApplication(
+        org_id=org_id,
+        employee_id=employee_id,
+        plan_id=plan.id,
+        requested_effective_date=requested_effective_date,
+        note=note,
+        status=BenefitApplicationStatus.PENDING,
+    )
+    db.add(application)
+    db.flush()
+    return application
