@@ -63,6 +63,7 @@ def request_my_loan(
             num_installments=body.num_installments,
             start_date=body.start_date,
             interest_rate_bps=body.interest_rate_bps,
+            requires_approval=True,
         )
     except (ActiveLoanExistsError, LoanEligibilityError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
