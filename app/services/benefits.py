@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.benefit import (
@@ -162,7 +162,8 @@ def submit_benefit_application(
         select(Benefit.id).where(
             Benefit.employee_id == employee_id,
             Benefit.plan_id == plan.id,
-            Benefit.end_date.is_(None),
+            Benefit.effective_date <= requested_effective_date,
+            or_(Benefit.end_date.is_(None), Benefit.end_date >= requested_effective_date),
         )
     )
     if active is not None:
