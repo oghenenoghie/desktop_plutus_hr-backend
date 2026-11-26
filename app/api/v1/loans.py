@@ -134,7 +134,6 @@ def cancel_loan_endpoint(
     return _to_out(db, loan)
 
 
-
 @router.post("/{loan_id}/approve", response_model=LoanOut)
 def approve_loan_endpoint(
     loan_id: uuid.UUID,
