@@ -83,6 +83,41 @@ def test_annual_tax_reconciliation_and_certificate() -> None:
     assert missing_year.status_code == 404
 
 
+def test_auditor_can_read_payroll_register_reconciliation_and_certificate() -> None:
+    org_id = create_org()
+    manager_headers = _admin_headers(org_id, email="payrollreport-auditor-manager@example.com")
+    employee_id = create_employee(org_id, employee_number="EMP-AUDITOR-READ")
+    run = create_and_lock_pay_run(manager_headers, employee_ids=[employee_id])
+
+    email = "payrollreport-auditor@example.com"
+    account_id = create_account_with_membership(org_id, Role.AUDITOR, email=email)
+    tokens = login_with_mfa(account_id, email, Role.AUDITOR)
+    auditor_headers = auth_headers(tokens["access_token"])
+
+    register = client.get(
+        f"/api/v1/reports/payroll-register/{run['id']}", headers=auditor_headers
+    )
+    assert register.status_code == 200, register.text
+    assert len(register.json()) == 1
+    assert register.json()[0]["employee_id"] == str(employee_id)
+
+    reconciliation = client.get(
+        "/api/v1/reports/annual-tax-reconciliation",
+        headers=auditor_headers,
+        params={"tax_year": 2026},
+    )
+    assert reconciliation.status_code == 200, reconciliation.text
+    assert len(reconciliation.json()) == 1
+
+    certificate = client.get(
+        f"/api/v1/reports/annual-tax-reconciliation/{employee_id}/certificate",
+        headers=auditor_headers,
+        params={"tax_year": 2026},
+    )
+    assert certificate.status_code == 200, certificate.text
+    assert certificate.content.startswith(b"%PDF")
+
+
 def test_non_admin_cannot_view_payroll_reports() -> None:
     org_id = create_org()
     email = "payrollreport-manager@example.com"
