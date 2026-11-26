@@ -374,9 +374,7 @@ def test_auditor_can_read_expenses_but_cannot_reimburse_or_change_policy() -> No
     assert policy.status_code == 200, policy.text
 
     auditor_email = "expense-auditor@example.com"
-    auditor_account_id = create_account_with_membership(
-        org_id, Role.AUDITOR, email=auditor_email
-    )
+    auditor_account_id = create_account_with_membership(org_id, Role.AUDITOR, email=auditor_email)
     auditor_tokens = login_with_mfa(auditor_account_id, auditor_email, Role.AUDITOR)
     auditor_headers = auth_headers(auditor_tokens["access_token"])
 
@@ -388,9 +386,7 @@ def test_auditor_can_read_expenses_but_cannot_reimburse_or_change_policy() -> No
     assert limits.status_code == 200, limits.text
     assert limits.json()[0]["category"] == "travel"
 
-    reimburse = client.post(
-        f"/api/v1/expenses/{expense_id}/reimburse", headers=auditor_headers
-    )
+    reimburse = client.post(f"/api/v1/expenses/{expense_id}/reimburse", headers=auditor_headers)
     assert reimburse.status_code == 403
 
     change_policy = client.put(
@@ -400,7 +396,5 @@ def test_auditor_can_read_expenses_but_cannot_reimburse_or_change_policy() -> No
     )
     assert change_policy.status_code == 403
 
-    delete_policy = client.delete(
-        "/api/v1/expenses/policy-limits/travel", headers=auditor_headers
-    )
+    delete_policy = client.delete("/api/v1/expenses/policy-limits/travel", headers=auditor_headers)
     assert delete_policy.status_code == 403
