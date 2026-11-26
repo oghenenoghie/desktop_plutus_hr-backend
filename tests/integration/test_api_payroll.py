@@ -127,6 +127,10 @@ def test_reverse_restores_loan_balance_and_reactivates_a_paid_off_loan() -> None
     assert loan_response.status_code == 201, loan_response.text
     loan_id = loan_response.json()["id"]
 
+    approval = client.post(f"/api/v1/loans/{loan_id}/approve", headers=admin_headers)
+    assert approval.status_code == 200, approval.text
+    assert approval.json()["status"] == "active"
+
     run = create_and_lock_pay_run(admin_headers)
     pay_run_id = run["id"]
 
