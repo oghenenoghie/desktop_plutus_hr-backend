@@ -325,6 +325,12 @@ def apply_for_benefit(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="an application for this benefit plan is already pending",
+        ) from exc
 
     approvals.get_or_create_instance(
         db,
