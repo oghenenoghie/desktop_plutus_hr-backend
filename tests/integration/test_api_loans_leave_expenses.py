@@ -31,12 +31,16 @@ def test_employee_requests_loan_and_admin_can_see_and_cancel_it() -> None:
     )
     assert response.status_code == 201, response.text
     loan = response.json()
-    assert loan["status"] == "active"
+    assert loan["status"] == "pending"
     assert loan["outstanding_minor"] == 60000
     # 60000 / 3 = 20000 exactly, so the base installment is the full amount.
     assert loan["installment_minor"] == 20000
 
     admin_headers = _admin_headers(org_id)
+    approval = client.post(f"/api/v1/loans/{loan['id']}/approve", headers=admin_headers)
+    assert approval.status_code == 200, approval.text
+    assert approval.json()["status"] == "active"
+
     listing = client.get("/api/v1/loans", headers=admin_headers)
     assert listing.status_code == 200
     assert len(listing.json()) == 1

@@ -7,17 +7,20 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_claims, get_current_employee, get_tenant_db, require_roles
 from app.core.security import TokenClaims
 from app.domain.payroll.loans import LoanEligibilityError
+from app.models.approval import ApprovalRequestType
 from app.models.employee import Employee
-from app.models.loan import Loan
+from app.models.loan import Loan, LoanStatus
 from app.models.membership import Role
 from app.schemas.loans import LoanCreate, LoanOut
 from app.services.audit import record_audit_event
+from app.services.approvals import decide, get_or_create_instance
 from app.services.loans import ActiveLoanExistsError, cancel_loan, request_loan
 from app.services.payroll import outstanding_loan_balance
 
 router = APIRouter(prefix="/loans", tags=["loans"])
 
 _MANAGE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT)
+_APPROVE = require_roles(Role.ADMIN, Role.PAYROLL_MANAGER, Role.ACCOUNTANT, Role.MANAGER)
 
 
 def _to_out(db: Session, loan: Loan) -> LoanOut:
@@ -62,6 +65,13 @@ def request_my_loan(
         )
     except (ActiveLoanExistsError, LoanEligibilityError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    get_or_create_instance(
+        db,
+        org_id=employee.org_id,
+        request_type=ApprovalRequestType.LOAN,
+        request_id=loan.id,
+        requester_employee_id=employee.id,
+    )
     record_audit_event(
         db,
         org_id=employee.org_id,
@@ -120,5 +130,74 @@ def cancel_loan_endpoint(
         action="loan.cancel",
         entity_type="loan",
         entity_id=loan.id,
+    )
+    return _to_out(db, loan)
+
+
+@router.post("/{loan_id}/approve", response_model=LoanOut)
+def approve_loan_endpoint(
+    loan_id: uuid.UUID,
+    db: Session = Depends(get_tenant_db),
+    claims: TokenClaims = Depends(_APPROVE),
+) -> LoanOut:
+    loan = _get_loan_or_404(db, loan_id)
+    try:
+        instance, is_final = decide(
+            db,
+            claims=claims,
+            request_type=ApprovalRequestType.LOAN,
+            request_id=loan.id,
+            requester_employee_id=loan.employee_id,
+            approve=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if is_final:
+        loan.status = LoanStatus.ACTIVE
+        db.add(loan)
+    db.flush()
+    record_audit_event(
+        db,
+        org_id=claims.org_id,
+        account_id=claims.account_id,
+        role=claims.role,
+        action="loan.approve",
+        entity_type="loan",
+        entity_id=loan.id,
+        metadata={"approval_status": instance.status.value},
+    )
+    return _to_out(db, loan)
+
+
+@router.post("/{loan_id}/reject", response_model=LoanOut)
+def reject_loan_endpoint(
+    loan_id: uuid.UUID,
+    db: Session = Depends(get_tenant_db),
+    claims: TokenClaims = Depends(_APPROVE),
+) -> LoanOut:
+    loan = _get_loan_or_404(db, loan_id)
+    try:
+        instance, _ = decide(
+            db,
+            claims=claims,
+            request_type=ApprovalRequestType.LOAN,
+            request_id=loan.id,
+            requester_employee_id=loan.employee_id,
+            approve=False,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    loan.status = LoanStatus.REJECTED
+    db.add(loan)
+    db.flush()
+    record_audit_event(
+        db,
+        org_id=claims.org_id,
+        account_id=claims.account_id,
+        role=claims.role,
+        action="loan.reject",
+        entity_type="loan",
+        entity_id=loan.id,
+        metadata={"approval_status": instance.status.value},
     )
     return _to_out(db, loan)

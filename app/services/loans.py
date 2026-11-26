@@ -1,6 +1,7 @@
 import uuid
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.payroll.frequency import periods_per_year
@@ -15,8 +16,7 @@ from app.services.payroll import active_loan
 
 
 class ActiveLoanExistsError(Exception):
-    """Raised when an employee already has an active loan — at most one at
-    a time (see app.services.payroll.active_loan)."""
+    """Raised when an employee already has an active or pending loan."""
 
 
 def request_loan(
@@ -29,8 +29,14 @@ def request_loan(
     start_date: date,
     interest_rate_bps: int = 0,
 ) -> Loan:
-    if active_loan(db, employee.id) is not None:
-        raise ActiveLoanExistsError("employee already has an active loan")
+    existing_loan = db.scalar(
+        select(Loan.id).where(
+            Loan.employee_id == employee.id,
+            Loan.status.in_([LoanStatus.ACTIVE, LoanStatus.PENDING]),
+        )
+    )
+    if existing_loan is not None or active_loan(db, employee.id) is not None:
+        raise ActiveLoanExistsError("employee already has an active or pending loan")
 
     period_pay_minor = employee.basic_minor + employee.housing_minor + employee.transport_minor
     monthly_pay_minor = period_pay_minor * periods_per_year(employee.pay_frequency) // 12
@@ -42,10 +48,6 @@ def request_loan(
     )
 
     total_repayable_minor = apply_flat_interest_minor(principal_minor, interest_rate_bps)
-    # The regular per-period deduction is the equal-installment base amount;
-    # the final installment shrinks to whatever's actually left via
-    # next_installment_amount, so the rounding remainder is absorbed there
-    # instead of front-loaded onto the first installment.
     installment_minor = compute_equal_installments(total_repayable_minor, num_installments)[0]
 
     loan = Loan(
@@ -57,6 +59,7 @@ def request_loan(
         num_installments=num_installments,
         installment_minor=installment_minor,
         start_date=start_date,
+        status=LoanStatus.PENDING,
     )
     db.add(loan)
     db.flush()

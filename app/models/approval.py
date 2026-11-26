@@ -21,6 +21,7 @@ class ApprovalRequestType(str, enum.Enum):
     STOCK_ISSUE = "stock_issue"
     STOCK_TRANSFER = "stock_transfer"
     STOCKTAKE = "stocktake"
+    LOAN = "loan"
 
 
 class ApprovalStepEligibilityType(str, enum.Enum):
