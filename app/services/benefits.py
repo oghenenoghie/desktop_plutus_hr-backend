@@ -137,7 +137,6 @@ def add_dependent(
     return dependent
 
 
-
 def submit_benefit_application(
     db: Session,
     *,
