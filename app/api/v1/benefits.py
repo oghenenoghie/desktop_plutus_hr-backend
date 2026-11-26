@@ -260,7 +260,6 @@ def remove_dependent(
     )
 
 
-
 _VIEW_APPLICATIONS = require_roles(
     Role.ADMIN,
     Role.PAYROLL_MANAGER,
