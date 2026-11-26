@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Enum, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Date, DateTime, Enum, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -155,6 +155,15 @@ class BenefitApplication(Base):
     """
 
     __tablename__ = "benefit_applications"
+    __table_args__ = (
+        Index(
+            "uq_benefit_application_pending_employee_plan",
+            "employee_id",
+            "plan_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
