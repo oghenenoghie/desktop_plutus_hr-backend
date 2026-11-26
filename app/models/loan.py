@@ -41,7 +41,7 @@ class Loan(Base):
     status: Mapped[LoanStatus] = mapped_column(
         Enum(LoanStatus, name="loan_status", values_callable=lambda m: [x.value for x in m]),
         nullable=False,
-        default=LoanStatus.PENDING,
+        default=LoanStatus.ACTIVE,
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
