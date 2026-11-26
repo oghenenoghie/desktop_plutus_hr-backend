@@ -57,6 +57,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
+        "uq_benefit_application_pending_employee_plan",
+        "benefit_applications",
+        ["employee_id", "plan_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
+    op.create_index(
         "ix_benefit_applications_employee_id",
         "benefit_applications",
         ["employee_id"],
