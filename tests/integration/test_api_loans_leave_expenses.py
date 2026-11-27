@@ -398,3 +398,59 @@ def test_auditor_can_read_expenses_but_cannot_reimburse_or_change_policy() -> No
 
     delete_policy = client.delete("/api/v1/expenses/policy-limits/travel", headers=auditor_headers)
     assert delete_policy.status_code == 403
+
+
+def test_payroll_manager_can_reject_pending_loan_and_terminal_loan_cannot_be_decided_again() -> None:
+    org_id = create_org()
+    email = "rejected-borrower@example.com"
+    account_id = create_account_with_membership(org_id, Role.EMPLOYEE, email=email)
+    create_employee(org_id, account_id=account_id, employee_number="EMP-LOAN-REJECT")
+    employee_headers = auth_headers(login(email)["access_token"])
+
+    submitted = client.post(
+        "/api/v1/loans/me",
+        headers=employee_headers,
+        json={"principal_minor": 60000, "num_installments": 3, "start_date": "2026-01-01"},
+    )
+    assert submitted.status_code == 201, submitted.text
+    loan_id = submitted.json()["id"]
+
+    admin_headers = _admin_headers(org_id, email="loan-reject-admin@example.com")
+    rejected = client.post(f"/api/v1/loans/{loan_id}/reject", headers=admin_headers)
+    assert rejected.status_code == 200, rejected.text
+    assert rejected.json()["status"] == "rejected"
+
+    # A terminal loan must not be approved or rejected a second time.
+    approve_again = client.post(f"/api/v1/loans/{loan_id}/approve", headers=admin_headers)
+    reject_again = client.post(f"/api/v1/loans/{loan_id}/reject", headers=admin_headers)
+    assert approve_again.status_code == 400
+    assert reject_again.status_code == 400
+
+
+def test_manager_cannot_reject_loan_for_employee_outside_reporting_line() -> None:
+    org_id = create_org()
+    manager_email = "loan-manager@example.com"
+    manager_account_id = create_account_with_membership(org_id, Role.MANAGER, email=manager_email)
+    create_employee(org_id, account_id=manager_account_id, employee_number="MGR-LOAN")
+
+    employee_email = "unrelated-loan-employee@example.com"
+    employee_account_id = create_account_with_membership(org_id, Role.EMPLOYEE, email=employee_email)
+    create_employee(org_id, account_id=employee_account_id, employee_number="EMP-UNRELATED-LOAN")
+    employee_headers = auth_headers(login(employee_email)["access_token"])
+    manager_headers = auth_headers(login(manager_email)["access_token"])
+
+    submitted = client.post(
+        "/api/v1/loans/me",
+        headers=employee_headers,
+        json={"principal_minor": 30000, "num_installments": 3, "start_date": "2026-01-01"},
+    )
+    assert submitted.status_code == 201, submitted.text
+    loan_id = submitted.json()["id"]
+
+    rejected = client.post(f"/api/v1/loans/{loan_id}/reject", headers=manager_headers)
+    assert rejected.status_code == 403, rejected.text
+
+    # The unauthorised decision must leave the loan pending.
+    still_pending = client.get(f"/api/v1/loans/{loan_id}", headers=employee_headers)
+    assert still_pending.status_code == 200
+    assert still_pending.json()["status"] == "pending"
