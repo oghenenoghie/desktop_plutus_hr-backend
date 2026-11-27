@@ -431,7 +431,7 @@ def test_manager_cannot_reject_loan_for_employee_outside_reporting_line() -> Non
     org_id = create_org()
     manager_email = "loan-manager@example.com"
     manager_account_id = create_account_with_membership(org_id, Role.MANAGER, email=manager_email)
-    manager_id = create_employee(org_id, account_id=manager_account_id, employee_number="MGR-LOAN")
+    create_employee(org_id, account_id=manager_account_id, employee_number="MGR-LOAN")
 
     employee_email = "unrelated-loan-employee@example.com"
     employee_account_id = create_account_with_membership(org_id, Role.EMPLOYEE, email=employee_email)
